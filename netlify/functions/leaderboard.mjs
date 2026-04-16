@@ -20,7 +20,7 @@ function getLeaderboardStore() {
 function compareScores(a, b) {
   if (b.stars !== a.stars) return b.stars - a.stars;
   if (b.level !== a.level) return b.level - a.level;
-  return a.createdAt - b.createdAt;
+  return b.createdAt - a.createdAt;
 }
 
 function sanitizeName(name) {
