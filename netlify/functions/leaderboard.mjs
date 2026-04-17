@@ -1,6 +1,5 @@
 import { getStore } from "@netlify/blobs";
 
-const LEADERBOARD_LIMIT = 20;
 const LATEST_LIMIT = 5;
 const STORE_NAME = "ranger-challenge";
 const SCORE_KEY = "leaderboard-v1";
@@ -54,12 +53,12 @@ async function readEntries() {
   const store = getLeaderboardStore();
   const data = await store.get(SCORE_KEY, { type: "json", consistency: "strong" });
   if (!Array.isArray(data)) return [];
-  return data.map(normalizeEntry).sort(compareScores).slice(0, LEADERBOARD_LIMIT);
+  return data.map(normalizeEntry).sort(compareScores);
 }
 
 async function writeEntries(entries) {
   const store = getLeaderboardStore();
-  const normalized = entries.map(normalizeEntry).sort(compareScores).slice(0, LEADERBOARD_LIMIT);
+  const normalized = entries.map(normalizeEntry).sort(compareScores);
   await store.setJSON(SCORE_KEY, normalized);
   return normalized;
 }
