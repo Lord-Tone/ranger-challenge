@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ranger Map Trace Helper</title>
+<style>
+  :root{
+    --bg:#102015;
+    --panel:#1a2d1f;
+    --panel-2:#223828;
+    --ink:#f4e9ba;
+    --gold:#f4d777;
+    --muted:#b9b08a;
+    --line:#6f6540;
+    --accent:#ffec9a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:Georgia, serif;
+    background:linear-gradient(180deg,#0d1b12,#132619 50%,#0c160f);
+    color:var(--ink);
+  }
+  .app{
+    display:grid;
+    grid-template-columns:minmax(420px, 1.15fr) minmax(340px, .85fr);
+    min-height:100vh;
+  }
+  .stage{
+    padding:20px;
+    border-right:1px solid rgba(244,215,119,.18);
+    position:sticky;
+    top:0;
+    align-self:start;
+    height:100vh;
+  }
+  .mapFrame{
+    position:relative;
+    height:calc(100vh - 40px);
+    border:4px solid rgba(244,215,119,.7);
+    border-radius:20px;
+    overflow:hidden;
+    background:#111;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+  }
+  .mapFrame img,
+  .mapFrame svg{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+  }
+  .mapFrame img{
+    object-fit:contain;
+    background:#1a1a1a;
+  }
+  .mapFrame svg{
+    overflow:visible;
+  }
+  .basePath{
+    fill:none;
+    stroke:rgba(30,25,16,.55);
+    stroke-width:1.1;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+  }
+  .guidePath{
+    fill:none;
+    stroke:var(--gold);
+    stroke-width:1.35;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+    filter:drop-shadow(0 0 7px rgba(244,215,119,.55));
+  }
+  .point{
+    fill:#0f1710;
+    stroke:#fff0bb;
+    stroke-width:.45;
+    cursor:grab;
+  }
+  .point.active{
+    fill:var(--accent);
+    stroke:#fff;
+  }
+  .pointLabel{
+    fill:#fff0bb;
+    font-size:2.1px;
+    font-weight:700;
+    paint-order:stroke;
+    stroke:#172117;
+    stroke-width:.9px;
+    pointer-events:none;
+  }
+  .controls{
+    padding:20px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .panel{
+    background:rgba(26,45,31,.94);
+    border:2px solid rgba(244,215,119,.26);
+    border-radius:18px;
+    padding:16px;
+    box-shadow:0 12px 30px rgba(0,0,0,.22);
+  }
+  h1,h2,p{margin:0}
+  h1{
+    font-size:28px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:var(--gold);
+  }
+  h2{
+    font-size:15px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin-bottom:10px;
+  }
+  p{
+    line-height:1.45;
+    color:var(--muted);
+  }
+  .row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  button{
+    appearance:none;
+    border:none;
+    border-radius:12px;
+    background:linear-gradient(180deg,#f1dc93,#d7bd65);
+    color:#172117;
+    font-weight:800;
+    padding:11px 14px;
+    cursor:pointer;
+  }
+  button.secondary{
+    background:linear-gradient(180deg,#37563b,#29412c);
+    color:var(--ink);
+  }
+  textarea{
+    width:100%;
+    min-height:260px;
+    resize:vertical;
+    border-radius:14px;
+    border:2px solid rgba(244,215,119,.22);
+    background:rgba(8,15,10,.82);
+    color:#f8efca;
+    padding:14px;
+    font:13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .small{
+    font-size:13px;
+    color:var(--muted);
+  }
+  .status{
+    color:var(--accent);
+    font-weight:700;
+  }
+  .nudgeGrid{
+    display:grid;
+    grid-template-columns:44px 44px 44px;
+    gap:8px;
+    width:max-content;
+    margin-top:12px;
+  }
+  .nudgeGrid button{
+    padding:10px 0;
+  }
+  code{
+    color:#fff0bb;
+  }
+  @media (max-width: 1100px){
+    .app{
+      grid-template-columns:1fr;
+    }
+    .stage{
+      position:relative;
+      height:auto;
+      border-right:none;
+      border-bottom:1px solid rgba(244,215,119,.18);
+    }
+    .mapFrame{
+      height:min(78vh, 900px);
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="stage">
+    <div class="mapFrame" id="mapFrame">
+      <img src="/Users/antonylees/Desktop/RangerChallenge/assets/ranger-map.png" alt="Ranger map">
+      <svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <path class="basePath" id="basePath"></path>
+        <path class="guidePath" id="guidePath"></path>
+        <g id="pointLayer"></g>
+      </svg>
+    </div>
+  </section>
+  <section class="controls">
+    <div class="panel">
+      <h1>Trace Helper</h1>
+      <p>Drag the dots on the map. The coordinate list on the right updates live, so you can manually refine the route and copy it back into the game.</p>
+    </div>
+
+    <div class="panel">
+      <h2>How To Use It</h2>
+      <p>Click a point to select it, then drag it or use the nudge buttons for tiny moves. <code>Add point</code> inserts one after the selected point. <code>Copy JS</code> gives you a ready-to-paste <code>GUIDE_ROUTE_POINTS</code> block.</p>
+      <div class="nudgeGrid">
+        <div></div><button class="secondary" data-nudge="0,-0.4">↑</button><div></div>
+        <button class="secondary" data-nudge="-0.4,0">←</button>
+        <button class="secondary" data-nudge="0,0">•</button>
+        <button class="secondary" data-nudge="0.4,0">→</button>
+        <div></div><button class="secondary" data-nudge="0,0.4">↓</button><div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Actions</h2>
+      <div class="row">
+        <button id="addPointBtn">Add Point</button>
+        <button id="removePointBtn" class="secondary">Remove Point</button>
+        <button id="copyJsBtn">Copy JS</button>
+        <button id="copyJsonBtn" class="secondary">Copy JSON</button>
+      </div>
+      <p class="small" style="margin-top:12px">Selected point: <span class="status" id="selectedLabel">none</span></p>
+    </div>
+
+    <div class="panel">
+      <h2>Coordinates</h2>
+      <textarea id="coordsBox" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button id="applyTextBtn">Apply Text</button>
+        <button id="resetBtn" class="secondary">Reset To Current</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const INITIAL_POINTS = [
+    {x:55.2,y:7.2},
+    {x:44.9,y:18.2},
+    {x:60.4,y:23.2},
+    {x:58.8,y:28.9},
+    {x:30.8,y:32.8},
+    {x:23.0,y:38.2},
+    {x:45.2,y:45.0},
+    {x:56.2,y:50.5},
+    {x:37.2,y:55.6},
+    {x:35.8,y:59.9},
+    {x:57.4,y:63.0},
+    {x:58.4,y:67.2},
+    {x:39.8,y:70.8},
+    {x:38.2,y:75.0},
+    {x:58.8,y:79.0},
+    {x:57.6,y:83.7},
+    {x:45.9,y:88.0},
+    {x:47.7,y:92.2},
+    {x:49.4,y:96.2},
+    {x:47.0,y:97.0}
+  ];
+
+  const guidePath = document.getElementById('guidePath');
+  const basePath = document.getElementById('basePath');
+  const pointLayer = document.getElementById('pointLayer');
+  const coordsBox = document.getElementById('coordsBox');
+  const selectedLabel = document.getElementById('selectedLabel');
+  const addPointBtn = document.getElementById('addPointBtn');
+  const removePointBtn = document.getElementById('removePointBtn');
+  const copyJsBtn = document.getElementById('copyJsBtn');
+  const copyJsonBtn = document.getElementById('copyJsonBtn');
+  const applyTextBtn = document.getElementById('applyTextBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  let points = INITIAL_POINTS.map(pt => ({...pt}));
+  let selectedIndex = 0;
+  let draggingIndex = null;
+
+  function clamp(value, min, max){
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function buildPathD(list){
+    if(!list.length) return '';
+    if(list.length === 1) return `M ${list[0].x} ${list[0].y}`;
+    let d = `M ${list[0].x} ${list[0].y}`;
+    for(let i = 1; i < list.length; i++){
+      const p0 = list[i - 1];
+      const p1 = list[i];
+      const prev = list[i - 2] || p0;
+      const next = list[i + 1] || p1;
+      const c1x = +(p0.x + (p1.x - prev.x) / 6).toFixed(1);
+      const c1y = +(p0.y + (p1.y - prev.y) / 6).toFixed(1);
+      const c2x = +(p1.x - (next.x - p0.x) / 6).toFixed(1);
+      const c2y = +(p1.y - (next.y - p0.y) / 6).toFixed(1);
+      d += ` C ${c1x} ${c1y} ${c2x} ${c2y} ${p1.x} ${p1.y}`;
+    }
+    return d;
+  }
+
+  function refreshText(){
+    coordsBox.value = JSON.stringify(points, null, 2);
+    selectedLabel.textContent = selectedIndex == null ? 'none' : `#${selectedIndex + 1} (${points[selectedIndex].x.toFixed(1)}, ${points[selectedIndex].y.toFixed(1)})`;
+  }
+
+  function render(){
+    const d = buildPathD(points);
+    guidePath.setAttribute('d', d);
+    basePath.setAttribute('d', d);
+    pointLayer.innerHTML = points.map((pt, index) => `
+      <g data-index="${index}">
+        <circle class="point${index === selectedIndex ? ' active' : ''}" cx="${pt.x}" cy="${pt.y}" r="1.1"></circle>
+        <text class="pointLabel" x="${pt.x + 1.3}" y="${pt.y - 1.1}">${index + 1}</text>
+      </g>
+    `).join('');
+    refreshText();
+  }
+
+  function svgPointFromEvent(event){
+    const svg = document.getElementById('mapSvg');
+    const rect = svg.getBoundingClientRect();
+    return {
+      x: clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100),
+      y: clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100)
+    };
+  }
+
+  pointLayer.addEventListener('pointerdown', event => {
+    const group = event.target.closest('g[data-index]');
+    if(!group) return;
+    draggingIndex = Number(group.dataset.index);
+    selectedIndex = draggingIndex;
+    event.target.setPointerCapture?.(event.pointerId);
+    render();
+  });
+
+  window.addEventListener('pointermove', event => {
+    if(draggingIndex == null) return;
+    const pt = svgPointFromEvent(event);
+    points[draggingIndex] = {
+      x:+pt.x.toFixed(1),
+      y:+pt.y.toFixed(1)
+    };
+    render();
+  });
+
+  window.addEventListener('pointerup', () => {
+    draggingIndex = null;
+  });
+
+  addPointBtn.addEventListener('click', () => {
+    if(selectedIndex == null){
+      points.push({x:50, y:50});
+      selectedIndex = points.length - 1;
+      render();
+      return;
+    }
+    const current = points[selectedIndex];
+    const next = points[selectedIndex + 1] || current;
+    const inserted = {
+      x:+((current.x + next.x) / 2).toFixed(1),
+      y:+((current.y + next.y) / 2).toFixed(1)
+    };
+    points.splice(selectedIndex + 1, 0, inserted);
+    selectedIndex += 1;
+    render();
+  });
+
+  removePointBtn.addEventListener('click', () => {
+    if(selectedIndex == null || points.length <= 2) return;
+    points.splice(selectedIndex, 1);
+    selectedIndex = clamp(selectedIndex, 0, points.length - 1);
+    render();
+  });
+
+  document.querySelectorAll('[data-nudge]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(selectedIndex == null) return;
+      const [dx, dy] = btn.dataset.nudge.split(',').map(Number);
+      if(!dx && !dy) return;
+      points[selectedIndex] = {
+        x:+clamp(points[selectedIndex].x + dx, 0, 100).toFixed(1),
+        y:+clamp(points[selectedIndex].y + dy, 0, 100).toFixed(1)
+      };
+      render();
+    });
+  });
+
+  copyJsBtn.addEventListener('click', async () => {
+    const js = `const GUIDE_ROUTE_POINTS = ${JSON.stringify(points, null, 2)};`;
+    await navigator.clipboard.writeText(js);
+    copyJsBtn.textContent = 'Copied';
+    setTimeout(() => copyJsBtn.textContent = 'Copy JS', 1000);
+  });
+
+  copyJsonBtn.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(JSON.stringify(points, null, 2));
+    copyJsonBtn.textContent = 'Copied';
+    setTimeout(() => copyJsonBtn.textContent = 'Copy JSON', 1000);
+  });
+
+  applyTextBtn.addEventListener('click', () => {
+    try{
+      const parsed = JSON.parse(coordsBox.value);
+      if(!Array.isArray(parsed) || !parsed.length) throw new Error('Invalid coordinate list');
+      points = parsed.map(pt => ({
+        x:+clamp(Number(pt.x), 0, 100).toFixed(1),
+        y:+clamp(Number(pt.y), 0, 100).toFixed(1)
+      }));
+      selectedIndex = clamp(selectedIndex ?? 0, 0, points.length - 1);
+      render();
+    } catch(err){
+      alert('Could not parse coordinates. Make sure the box contains valid JSON like [{"x":55.2,"y":7.2}].');
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    points = INITIAL_POINTS.map(pt => ({...pt}));
+    selectedIndex = 0;
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
