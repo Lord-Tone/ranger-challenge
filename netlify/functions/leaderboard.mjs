@@ -28,7 +28,7 @@ function sanitizeName(name) {
     .replace(/[^A-Z0-9 ]+/g, "")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 10);
+    .slice(0, 20);
 }
 
 function normalizeEntry(entry) {
